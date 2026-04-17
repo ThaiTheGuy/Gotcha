@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gotcha — Lease Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1f3d; color: #d0dcf0; min-height: 100vh; }
+    header { background: #0f1f3d; padding: 2rem; border-bottom: 3px solid #e84855; }
+    header h1 { font-size: 2.5rem; color: #fff; letter-spacing: 6px; }
+    header p { color: #8ca0bb; margin-top: 0.4rem; font-size: 1rem; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
+    textarea {
+      width: 100%; height: 220px; padding: 1rem;
+      background: #162847; border: 1px solid #2a4a70;
+      color: #d0dcf0; border-radius: 6px; font-size: 0.95rem;
+      resize: vertical;
+    }
+    textarea::placeholder { color: #8ca0bb; }
+    button {
+      margin-top: 1rem; padding: 0.8rem 2.5rem;
+      background: #e84855; color: white; border: none;
+      border-radius: 6px; font-size: 1rem; font-weight: bold;
+      cursor: pointer; letter-spacing: 1px;
+    }
+    button:hover { background: #ff6b75; }
+    .results { margin-top: 2rem; }
+    .results h2 { font-size: 1.2rem; color: #8ca0bb; letter-spacing: 2px; margin-bottom: 1rem; }
+    .summary { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1.5rem; }
+    .pill { padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+    .pill.illegal { background: #2d0a09; color: #ff6b6b; }
+    .pill.landlord { background: #2d1a05; color: #ffb347; }
+    .pill.fee { background: #2d260a; color: #ffd166; }
+    .pill.renewal { background: #0a1a2d; color: #5dade2; }
+    .card {
+      background: #162847; border-radius: 8px;
+      padding: 1.2rem 1.4rem; margin-bottom: 1rem;
+      border-left: 5px solid #e84855;
+    }
+    .card.illegal { border-left-color: #e84855; }
+    .card.landlord { border-left-color: #e67e22; }
+    .card.fee { border-left-color: #ffd166; }
+    .card.renewal { border-left-color: #2e86c1; }
+    .card.standard { border-left-color: #27ae60; }
+    .label {
+      display: inline-block; padding: 0.2rem 0.7rem;
+      border-radius: 4px; font-size: 0.75rem; font-weight: bold;
+      margin-bottom: 0.6rem; letter-spacing: 1px;
+    }
+    .label.illegal { background: #2d0a09; color: #ff6b6b; }
+    .label.landlord { background: #2d1a05; color: #ffb347; }
+    .label.fee { background: #2d260a; color: #ffd166; }
+    .label.renewal { background: #0a1a2d; color: #5dade2; }
+    .label.standard { background: #0a2d18; color: #58d68d; }
+    .clause-text { font-size: 0.9rem; color: #8ca0bb; margin-bottom: 0.5rem; font-style: italic; }
+    .explanation { font-size: 0.95rem; color: #d0dcf0; }
+    .error { background: #2d0a09; border: 1px solid #e84855; color: #ff6b6b; padding: 1rem; border-radius: 6px; margin-top: 1rem; }
+    .loading { display: none; color: #8ca0bb; margin-top: 1rem; font-style: italic; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GOTCHA</h1>
+    <p>Paste your lease below. We'll flag what you need to know before you sign.</p>
+  </header>
+  <div class="container">
+    <form method="POST" onsubmit="document.getElementById('loading').style.display='block'">
+      <textarea name="lease_text" placeholder="Paste your lease agreement text here...">{{ lease_text }}</textarea>
+      <button type="submit">ANALYZE LEASE</button>
+      <p id="loading" class="loading">⏳ Analyzing your lease, this may take a few seconds...</p>
+    </form>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if results %}
+      <div class="results">
+        {% set illegal_count = results | selectattr("label", "equalto", "Potentially Illegal") | list | length %}
+        {% set landlord_count = results | selectattr("label", "equalto", "Landlord Favored") | list | length %}
+        {% set fee_count = results | selectattr("label", "equalto", "Unusual Fee") | list | length %}
+        {% set renewal_count = results | selectattr("label", "equalto", "Auto-Renewal Risk") | list | length %}
+
+        <h2>ANALYSIS RESULTS — {{ results|length }} CLAUSE(S) FLAGGED</h2>
+        <div class="summary">
+          <span class="pill illegal">🔴 {{ illegal_count }} Potentially Illegal</span>
+          <span class="pill landlord">🟠 {{ landlord_count }} Landlord Favored</span>
+          <span class="pill fee">🟡 {{ fee_count }} Unusual Fee</span>
+          <span class="pill renewal">🔵 {{ renewal_count }} Auto-Renewal Risk</span>
+        </div>
+
+        {% for item in results %}
+          {% if item.label == "Potentially Illegal" %}
+            {% set card_class = "illegal" %}
+          {% elif item.label == "Landlord Favored" %}
+            {% set card_class = "landlord" %}
+          {% elif item.label == "Unusual Fee" %}
+            {% set card_class = "fee" %}
+          {% elif item.label == "Auto-Renewal Risk" %}
+            {% set card_class = "renewal" %}
+          {% else %}
+            {% set card_class = "standard" %}
+          {% endif %}
+          <div class="card {{ card_class }}">
+            <span class="label {{ card_class }}">{{ item.label }}</span>
+            <div class="clause-text">"{{ item.clause }}"</div>
+            <div class="explanation">{{ item.explanation }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
